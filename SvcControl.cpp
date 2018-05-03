@@ -93,13 +93,13 @@ bool _stdcall SvcControl::DoStopService()
 
 	// Get a handle to the service.
 
-	schService = OpenService(schSCManager, // SCM database
+	m_schService = OpenService(schSCManager, // SCM database
 		MTSERVER_NAME, // name of service
 		SERVICE_STOP |
 		SERVICE_QUERY_STATUS |
 		SERVICE_ENUMERATE_DEPENDENTS);
 
-	if (schService == NULL)
+	if (m_schService == NULL)
 	{
 		printf("OpenService failed (%d)\n", GetLastError());
 		CloseServiceHandle(schSCManager);
@@ -109,21 +109,21 @@ bool _stdcall SvcControl::DoStopService()
 	// Make sure the service is not already stopped.
 
 	if ( !QueryServiceStatusEx(
-			schService,
+			m_schService,
 			SC_STATUS_PROCESS_INFO,
 			(LPBYTE)&ssp,
 			sizeof(SERVICE_STATUS_PROCESS),
 			&dwBytesNeeded ) )
 	{
 		printf("QueryServiceStatusEx failed (%d)\n", GetLastError());
-		CleanUp(schSCManager, schService);
+		CleanUp(schSCManager, m_schService);
 		return true;
 	}
 
 	if ( ssp.dwCurrentState == SERVICE_STOPPED )
 	{
 		printf("Service is already stopped.\n");
-		CleanUp(schSCManager, schService);
+		CleanUp(schSCManager, m_schService);
 		return true;;
 	}
 
@@ -147,28 +147,28 @@ bool _stdcall SvcControl::DoStopService()
 		Sleep( dwWaitTime );
 
 		if ( !QueryServiceStatusEx(
-				 schService,
+				 m_schService,
 				 SC_STATUS_PROCESS_INFO,
 				 (LPBYTE)&ssp,
 				 sizeof(SERVICE_STATUS_PROCESS),
 				 &dwBytesNeeded ) )
 		{
 			printf("QueryServiceStatusEx failed (%d)\n", GetLastError());
-			CleanUp(schSCManager, schService);
+			CleanUp(schSCManager, m_schService);
 			return false;
 		}
 
 		if ( ssp.dwCurrentState == SERVICE_STOPPED )
 		{
 			printf("Service stopped successfully.\n");
-			CleanUp(schSCManager, schService);
+			CleanUp(schSCManager, m_schService);
 			return true;
 		}
 
 		if ( GetTickCount() - dwStartTime > dwTimeout )
 		{
 			printf("Service stop timed out.\n");
-			CleanUp(schSCManager, schService);
+			CleanUp(schSCManager, m_schService);
 			return false;
 		}
 	}
@@ -180,12 +180,12 @@ bool _stdcall SvcControl::DoStopService()
 	// Send a stop code to the service.
 
 	if ( !ControlService(
-			schService,
+			m_schService,
 			SERVICE_CONTROL_STOP,
 			(LPSERVICE_STATUS) &ssp ) )
 	{
 		printf( "ControlService failed (%d)\n", GetLastError() );
-		CleanUp(schSCManager, schService);
+		CleanUp(schSCManager, m_schService);
 		return false;
 	}
 
@@ -195,14 +195,14 @@ bool _stdcall SvcControl::DoStopService()
 	{
 		Sleep( ssp.dwWaitHint );
 		if ( !QueryServiceStatusEx(
-				schService,
+				m_schService,
 				SC_STATUS_PROCESS_INFO,
 				(LPBYTE)&ssp,
 				sizeof(SERVICE_STATUS_PROCESS),
 				&dwBytesNeeded ) )
 		{
 				printf( "QueryServiceStatusEx failed (%d)\n", GetLastError() );
-			CleanUp(schSCManager, schService);
+			CleanUp(schSCManager, m_schService);
 			return false;
 		}
 
@@ -212,12 +212,12 @@ bool _stdcall SvcControl::DoStopService()
 		if ( GetTickCount() - dwStartTime > dwTimeout )
 		{
 //				printf( "Wait timed out\n" );
-			CleanUp(schSCManager, schService);
+			CleanUp(schSCManager, m_schService);
 			return false;
 		}
 	}
 	printf("Service stopped successfully\n");
-	CleanUp(schSCManager, schService);
+	CleanUp(schSCManager, m_schService);
 	return true;
 }
 
@@ -236,7 +236,7 @@ bool __stdcall SvcControl::StopDependentServices()
 	DWORD dwTimeout = 30000; // 30-second time-out
 
 	// Pass a zero-length buffer to get the required buffer size.
-	if ( EnumDependentServices( schService, SERVICE_ACTIVE,
+	if ( EnumDependentServices( m_schService, SERVICE_ACTIVE,
 		 lpDependencies, 0, &dwBytesNeeded, &dwCount ) )
 	{
 		 // If the Enum call succeeds, then there are no dependent
@@ -257,7 +257,7 @@ bool __stdcall SvcControl::StopDependentServices()
 
 		__try {
 			// Enumerate the dependencies.
-			if ( !EnumDependentServices( schService, SERVICE_ACTIVE,
+			if ( !EnumDependentServices( m_schService, SERVICE_ACTIVE,
 				lpDependencies, dwBytesNeeded, &dwBytesNeeded,
 				&dwCount ) )
 			return false;
@@ -452,12 +452,12 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
 
     // Get a handle to the service.
 
-	schService = OpenService(
+	m_schService = OpenService(
 		schSCManager,         // SCM database
 		servicename,            // name of service
 		SERVICE_ALL_ACCESS);  // full access
 
-	if (schService == NULL)
+	if (m_schService == NULL)
 	{
 		printf("OpenService failed (%d)\n", GetLastError());
 		CloseServiceHandle(schSCManager);
@@ -467,14 +467,14 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
 	// Check the status in case the service is not stopped.
 
     if (!QueryServiceStatusEx(
-            schService,                     // handle to service
+            m_schService,                     // handle to service
 			SC_STATUS_PROCESS_INFO,         // information level
             (LPBYTE) &ssStatus,             // address of structure
             sizeof(SERVICE_STATUS_PROCESS), // size of structure
             &dwBytesNeeded ) )              // size needed if buffer is too small
     {
         printf("QueryServiceStatusEx failed (%d)\n", GetLastError());
-        CloseServiceHandle(schService);
+        CloseServiceHandle(m_schService);
         CloseServiceHandle(schSCManager);
 		return false;
 	}
@@ -485,7 +485,7 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
     if(ssStatus.dwCurrentState != SERVICE_STOPPED && ssStatus.dwCurrentState != SERVICE_STOP_PENDING)
     {
         printf("Cannot start the service because it is already running\n");
-        CloseServiceHandle(schService);
+        CloseServiceHandle(m_schService);
         CloseServiceHandle(schSCManager);
 		return true;
     }
@@ -515,14 +515,14 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
         // Check the status until the service is no longer stop pending.
 
         if (!QueryServiceStatusEx(
-                schService,                     // handle to service
+                m_schService,                     // handle to service
                 SC_STATUS_PROCESS_INFO,         // information level
                 (LPBYTE) &ssStatus,             // address of structure
                 sizeof(SERVICE_STATUS_PROCESS), // size of structure
                 &dwBytesNeeded ) )              // size needed if buffer is too small
         {
             printf("QueryServiceStatusEx failed (%d)\n", GetLastError());
-            CloseServiceHandle(schService);
+            CloseServiceHandle(m_schService);
             CloseServiceHandle(schSCManager);
 			return false;
         }
@@ -539,7 +539,7 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
             if(GetTickCount()-dwStartTickCount > ssStatus.dwWaitHint)
             {
                 printf("Timeout waiting for service to stop\n");
-                CloseServiceHandle(schService);
+                CloseServiceHandle(m_schService);
                 CloseServiceHandle(schSCManager);
 				return false;
             }
@@ -549,12 +549,12 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
     // Attempt to start the service.
 
     if (!StartService(
-            schService,  // handle to service
+            m_schService,  // handle to service
             0,           // number of arguments
             NULL) )      // no arguments
     {
         printf("StartService failed (%d)\n", GetLastError());
-        CloseServiceHandle(schService);
+        CloseServiceHandle(m_schService);
         CloseServiceHandle(schSCManager);
 		return false;
     }
@@ -563,14 +563,14 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
     // Check the status until the service is no longer start pending.
 
     if (!QueryServiceStatusEx(
-            schService,                     // handle to service
+            m_schService,                     // handle to service
             SC_STATUS_PROCESS_INFO,         // info level
             (LPBYTE) &ssStatus,             // address of structure
             sizeof(SERVICE_STATUS_PROCESS), // size of structure
             &dwBytesNeeded ) )              // if buffer too small
     {
         printf("QueryServiceStatusEx failed (%d)\n", GetLastError());
-		CloseServiceHandle(schService);
+		CloseServiceHandle(m_schService);
 		CloseServiceHandle(schSCManager);
 		return false;
     }
@@ -598,7 +598,7 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
         // Check the status again.
 
         if (!QueryServiceStatusEx(
-            schService,             // handle to service
+            m_schService,             // handle to service
             SC_STATUS_PROCESS_INFO, // info level
             (LPBYTE) &ssStatus,             // address of structure
             sizeof(SERVICE_STATUS_PROCESS), // size of structure
@@ -640,7 +640,7 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
 		printf("  Wait Hint: %d\n", ssStatus.dwWaitHint);
     }
 
-	CloseServiceHandle(schService);
+	CloseServiceHandle(m_schService);
 	CloseServiceHandle(schSCManager);
 	return true;
 }

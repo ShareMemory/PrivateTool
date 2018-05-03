@@ -4,32 +4,27 @@
 
 #include <time.h>
 #include <string>
-#include <tchar.h>
-#ifdef UNICODE
-#define tstring wstring
-#define tprintf wprintf
-#define stprintf swprintf
-#define to_tstring to_wstring
-#define tstrcpy_s wcscpy_s
-#else
-#define tstring string
-#define tprintf printf
-#define stprintf sprintf
-#define stprintf sprintf
-#define to_tstring to_string
-#define tstrcpy_s strcpy_s
-#endif
+#include <deque>
+#include <mutex>
 
 class LogServer
 {
 private:
-	//debug
-	int m_logFPS = 0;
+	int m_logFPS = -1;
 	clock_t m_logTick = 0;
+	std::deque<std::tstring> m_dLogCache;
+	std::mutex m_mtxLogCache;
+	bool *m_exit = nullptr;
+	volatile bool m_closing = false;
+
+	void ShowLogThread();
 public:
 	LogServer();
 	LogServer(int logFPS);
-	void ShowLog(TCHAR *tstr);
+	~LogServer();
+	void ShowLogImmediate(tchar *tstr);
+	void ShowLog(tchar *tstr);
+	void ShowLogImmediate(std::tstring str);
 	void ShowLog(std::tstring str);
 };
 

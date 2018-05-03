@@ -75,7 +75,7 @@ int FindNextChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **file
 			tstrncpy(extendName, fd.cFileName + index + 1, sz - index - 1);
 			for (int i = 0; i < sz_fileExtendType; i++)
 			{
-				if (tstrcmp(t_strlwr(extendName), fileExtendType[i]) == 0)
+				if (tstrcmp(_tstrlwr(extendName), fileExtendType[i]) == 0)
 				{
 					tstrcpy(findFilePath, dirPath);
 					tstrcat(findFilePath, TEXT("\\"));

@@ -27,7 +27,7 @@
 class SvcControl {
 private:
 	SC_HANDLE schSCManager;
-	SC_HANDLE schService;
+	SC_HANDLE m_schService;
 	bool __stdcall StopDependentServices(void);
 	void __stdcall CleanUp(SC_HANDLE schscmanager, SC_HANDLE schService);
 
