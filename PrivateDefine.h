@@ -2,6 +2,7 @@
 #define PRIVATE_DEFINE_H
 
 #define MAX_PATH 260
+#define MAX_SIZE 256
 
 #ifdef UNICODE
 #define tchar wchar_t
