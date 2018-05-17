@@ -24,7 +24,8 @@ enum ConnectType
 {
 	CT_UNKNOWN = 0,
 	CT_TCP = 1,
-	CT_UDP_BROADCAST = 2,
+	CT_TCP_NONBLOCK = 2,
+	CT_UDP_BROADCAST = 3,
 };
 
 class InternetControlServer
@@ -45,7 +46,6 @@ private:
 	addrinfo *m_tcpAddrIn = NULL;
 
 	std::deque<std::deque<unsigned int> > GetLocalIPsAndMasks(ULONG family, std::deque<unsigned int> blockIP);
-	std::deque<PACKET> SplitPacket(char *buf, int size);
 public:
 	bool m_initOK = false;
 	bool m_tcpConnected = false;
@@ -55,8 +55,8 @@ public:
 
 	void Listen();
 	std::deque<int> Send(char *sendbuf, int size);
-	int Recv(char *recvbuf, int size);
-	void ListenProc();
+	bool Recv(char *recvbuf, int size, int &reSize);
+	void ListenProc(ConnectType connectType);
 };
 
 class InternetControlClient
@@ -72,11 +72,11 @@ private:
 	int m_sender_addr_len = 0;
 	char *m_needProcBuf = NULL;
 	int m_needProcBufSize = 0;
+	long long m_frameIndex;
 
 	std::deque<PACKET> m_dOtherPackets;
 	addrinfo *m_tcpAddrIn = NULL;
 
-	int MergePacket(std::deque<PACKET> packets, char *recvbuf, int size);
 public:
 	bool m_initOK = false;
 	bool m_tcpConnected = false;
@@ -90,4 +90,6 @@ public:
 	bool Recv(char *recvbuf, int size, int &reSize);
 };
 
+std::deque<PACKET> SplitPacket(char *buf, int size, int frameIndex);
+int MergePacket(std::deque<PACKET> packets, char *recvbuf, int size);
 in_addr FindServerIP();
