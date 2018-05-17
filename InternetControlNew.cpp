@@ -1,8 +1,15 @@
 #include "InternetControlNew.h"
 #include <iphlpapi.h>
 #include <WS2tcpip.h>
+#include <thread>
 
+#ifndef __BCPLUSPLUS__
+#pragma comment (lib, "Ws2_32.lib")
 #pragma comment(lib, "IPHLPAPI.lib")
+#else
+#pragma comment (lib, "Ws2_32.a")
+#pragma comment(lib, "IPHLPAPI.a")
+#endif
 
 #define WORKING_BUFFER_SIZE 15000
 #define MAX_TRIES 3
@@ -90,24 +97,26 @@ deque<deque<unsigned int> > InternetControlServer::GetLocalIPsAndMasks(ULONG fam
 							goto Continue;
 						}
 					}
-					ULONG i32mask = 0;
-					ConvertLengthToIpv4Mask(pUnicast->OnLinkPrefixLength, &i32mask);
-					////同样mask只选一个
-					////if (m_connectType)
-					////{
-					////	for (int i = 0; i < re.size(); i++)
-					////	{
-					////		if (i32mask == re[i][1])
-					////		{
-					////			goto Continue;
-					////		}
-					////	}
-					////}
-					ipAndMask.push_back(sa_in->sin_addr.S_un.S_addr);
-					ipAndMask.push_back(i32mask);
-					re.push_back(ipAndMask);
-					////每块网卡只选一个ip
-					break;
+					{
+						ULONG i32mask = 0;
+						ConvertLengthToIpv4Mask(pUnicast->OnLinkPrefixLength, &i32mask);
+						////同样mask只选一个
+						////if (m_connectType)
+						////{
+						////	for (int i = 0; i < re.size(); i++)
+						////	{
+						////		if (i32mask == re[i][1])
+						////		{
+						////			goto Continue;
+						////		}
+						////	}
+						////}
+						ipAndMask.push_back(sa_in->sin_addr.S_un.S_addr);
+						ipAndMask.push_back(i32mask);
+						re.push_back(ipAndMask);
+						////每块网卡只选一个ip
+						break;
+					}
 				Continue:
 					;
 				}
@@ -471,7 +480,6 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 						printf("[TCP]connect to %s failed, error code: %d\r\n", ip, errorcode);
 					continue;
 				}
-				m_socket = m_socket;
 				break;
 			}
 		}
@@ -484,7 +492,7 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 
 		if (setsockopt(m_socket, SOL_SOCKET, SO_BROADCAST, &m_broadcast, sizeof(m_broadcast)) < 0)
 		{
-			g_logServer.ShowLog(TEXT("Error in setting Broadcast option"));
+			printf("Error in setting Broadcast option\r\n");
 			closesocket(m_socket);
 			goto Error;
 		}

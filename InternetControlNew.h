@@ -1,10 +1,8 @@
 #pragma once
 #include "PrivateDefine.h"
-#include "LogServer.h"
 #include <winsock2.h>
 #include <deque>
-
-#pragma comment (lib, "Ws2_32.lib")
+#include <string>
 
 #define PACKET_SIZE 1300
 #define SYNC_FPS 30
