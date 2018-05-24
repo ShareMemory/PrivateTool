@@ -18,8 +18,6 @@
 #include <string>
 #include "PrivateTool.h"
 
-#pragma comment(lib, "advapi32.lib")
-
 #define MTSERVER_NAME TEXT("MTDigitizer")
 #define MTPLATFORM TEXT("MultiTouchPlatform.exe")
 #define MTPLATFORMHELPER TEXT("MultiTouchPlatformHelper.exe")
@@ -42,7 +40,7 @@ public:
 	bool _stdcall DoStopProcess();
 	bool _stdcall DoStopProcess(const tchar * processname);
 	bool _stdcall DoStartSvc(const tchar *servicename);
-	bool _stdcall DoStartProcess(const tchar* wccmd, const tchar* wcworkingdir = NULL);
+	bool _stdcall DoStartProcess(const tchar* wccmd, const tchar* wcworkingdir = TEXT(""));
 	bool _stdcall DoStartProcess(const tchar* wccmd, DWORD * elapsedtime, DWORD * returnvalue);
 	bool _stdcall QuaryProcess(const tchar *processname);
 	bool _stdcall GetOsVersion(RTL_OSVERSIONINFOEXW* pk_OsVer);

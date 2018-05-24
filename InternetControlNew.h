@@ -1,11 +1,13 @@
-#pragma once
+#ifndef INTERNET_CONTROL_NEW_H
+#define INTERNET_CONTROL_NEW_H
 #include "PrivateDefine.h"
+
 #include <winsock2.h>
 #include <deque>
 #include <string>
 
 #define PACKET_SIZE 1300
-#define SYNC_FPS 30
+#define SYNC_FPS 1
 
 struct PACKET
 {
@@ -30,6 +32,7 @@ class InternetControlServer
 {
 private:
 	ConnectType m_connectType = CT_UNKNOWN;
+    int m_sendbufSize = 1024 * 1024 * 1024;
 
 	WSADATA m_wsaData;
 	std::deque<unsigned int> m_dBlockLocalIP;
@@ -39,9 +42,16 @@ private:
 	std::deque<sockaddr_in> m_dSend_addr;
 	std::deque<int> m_dSend_addr_len;
 	std::deque<sockaddr_in> m_dRecv_addr;
-	std::deque<int> m_dRecv_addr_len;
-	long long m_frameIndex;
+	std::deque<int> m_dRecv_addr_len; 
+	bool *m_broadcastIPExit = NULL;
+
 	addrinfo *m_tcpAddrIn = NULL;
+	SOCKET m_clientSocket;
+	in_addr m_clientAddr;
+	char *m_needProcBuf = NULL;
+	int m_needProcBufSize = 0;
+
+	long long m_frameIndex;
 
 	std::deque<std::deque<unsigned int> > GetLocalIPsAndMasks(ULONG family, std::deque<unsigned int> blockIP);
 public:
@@ -51,10 +61,12 @@ public:
 	InternetControlServer(ConnectType type, short port);
 	~InternetControlServer();
 
-	void Listen();
 	std::deque<int> Send(char *sendbuf, int size);
-	bool Recv(char *recvbuf, int size, int &reSize);
-	void ListenProc(ConnectType connectType);
+	int Recv(char *recvbuf, int size, int &reSize);
+	void ListenProc();
+	//void Listen();
+	void BroadcastIPProc(bool *exit);
+	void BroadcastIP();
 };
 
 class InternetControlClient
@@ -62,7 +74,8 @@ class InternetControlClient
 private:
 	ConnectType m_connectType = CT_UNKNOWN;
 	WSADATA m_wsaData;
-	SOCKET m_socket = INVALID_SOCKET;
+	SOCKET m_serverSocket = INVALID_SOCKET;
+    int m_recvbufSize = 1024 * 1024 * 1024;
 
 	char m_broadcast = '1';
 	sockaddr_in m_sender_addr;
@@ -79,15 +92,17 @@ public:
 	bool m_initOK = false;
 	bool m_tcpConnected = false;
 
-	in_addr m_serverIp;
+	in_addr m_serverAddr;
 
 	InternetControlClient(ConnectType type, short port, const char *ip = nullptr);
 	~InternetControlClient();
 
-	int Send(char *sendbuf, int size);
-	bool Recv(char *recvbuf, int size, int &reSize);
+	int Send(char *sendbuf, int size, bool withPacket = true);
+	int Recv(char *recvbuf, int size, int &reSize);
 };
 
 std::deque<PACKET> SplitPacket(char *buf, int size, int frameIndex);
 int MergePacket(std::deque<PACKET> packets, char *recvbuf, int size);
 in_addr FindServerIP();
+
+#endif

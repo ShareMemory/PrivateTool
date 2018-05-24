@@ -1,6 +1,12 @@
 #include "SvcControl.h"
 #include <sstream>
 
+#ifndef __BCPLUSPLUS__
+#pragma comment(lib, "advapi32.lib")
+#else
+#pragma comment(lib, "advapi32.a")
+#endif
+
 SvcControl g_svcControl;
 
 SvcControl::SvcControl()

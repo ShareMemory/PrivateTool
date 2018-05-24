@@ -184,64 +184,12 @@ deque<deque<unsigned int> > InternetControlServer::GetLocalIPsAndMasks(ULONG fam
 	return re;
 }
 
-void InternetControlServer::ListenProc(ConnectType connectType)
-{
-	do
-	{
-		SOCKET listenSocket = socket(m_tcpAddrIn->ai_family, m_tcpAddrIn->ai_socktype, m_tcpAddrIn->ai_protocol);
-		int re = 0;
-		re = ::bind(listenSocket, m_tcpAddrIn->ai_addr, (int)m_tcpAddrIn->ai_addrlen);
-		if (re == SOCKET_ERROR)
-		{
-			printf("[TCP]bind failed with error: %d\r\n", WSAGetLastError());
-			break;
-		}
-		printf("[TCP]---wait for client---\r\n");
-		re = listen(listenSocket, SOMAXCONN);
-		if (re == SOCKET_ERROR)
-		{
-			printf("[TCP]listen failed with error: %d\r\n", WSAGetLastError());
-			break;
-		}
-		sockaddr clientAddr;
-		int clientAddrLen = sizeof(sockaddr);
-		SOCKET sock = accept(listenSocket, &clientAddr, &clientAddrLen);
-		if (sock == INVALID_SOCKET)
-		{
-			printf("[TCP]accept failed with error: %d\r\n", WSAGetLastError());
-		}
-		else
-		{
-			printf("[TCP]%s connected.\r\n", inet_ntoa(((sockaddr_in*)&clientAddr)->sin_addr));
-			if (connectType == CT_TCP_NONBLOCK)
-			{
-				u_long mode = 1;
-				re = ioctlsocket(sock, FIONBIO, &mode);
-				if (re != 0)
-				{
-					printf("[TCP]set nonblock failed with error: %d.\r\n", WSAGetLastError());
-					break;
-				}
-			}
-			pair<SOCKET, sockaddr> socketAddr;
-			socketAddr.first = sock;
-			socketAddr.second = clientAddr;
-			m_dSockets.push_back(socketAddr);
-			m_tcpConnected = true;
-
-		}
-		//SOCKET m_socket = accept(listenSocket, NULL, NULL);
-	Error:
-		closesocket(listenSocket);
-		listenSocket = INVALID_SOCKET;
-	} while (true);
-}
-
 InternetControlServer::InternetControlServer(ConnectType type, short port)
 {
 	m_connectType = type;
 	WSAStartup(MAKEWORD(2, 2), &m_wsaData);
-
+	m_needProcBuf = (char*)malloc(sizeof(PACKET) * 10000);
+	memset(m_needProcBuf, 0, sizeof(PACKET) * 10000);
 	switch (type)
 	{
 	case CT_UNKNOWN:
@@ -322,71 +270,181 @@ Error:
 
 InternetControlServer::~InternetControlServer()
 {
+	if (m_broadcastIPExit != NULL && m_broadcastIPExit == false)
+	{
+		*m_broadcastIPExit = true;
+	}
+	while (true)
+	{
+		if (*m_broadcastIPExit == false)
+		{
+			delete m_broadcastIPExit;
+			m_broadcastIPExit = NULL;
+			break;
+		}
+	}
+	if (m_needProcBuf != NULL)
+	{
+		free(m_needProcBuf);
+		m_needProcBuf = NULL;
+	}
 	if (m_tcpAddrIn != NULL)
 	{
 		freeaddrinfo(m_tcpAddrIn);
 		m_tcpAddrIn = NULL;
 	}
-	for (int i = 0; i < m_dSockets.size(); i++)
+	if (m_clientSocket != INVALID_SOCKET)
 	{
-		closesocket(m_dSockets[i].first);
-		m_dSockets[i].second = sockaddr();
+		closesocket(m_clientSocket);
+		m_clientAddr = in_addr();
 	}
 	WSACleanup();
 }
 
-void InternetControlServer::Listen()
+void InternetControlServer::BroadcastIPProc(bool *exit)
 {
-	std::thread listenThread = thread(&InternetControlServer::ListenProc, this, m_connectType);
-	listenThread.detach();
+	unsigned char *sendbuf = (unsigned char*)malloc(MAX_SIZE);
+	char *recvbuf = (char*)malloc(MAX_SIZE);
+	memset(sendbuf, 0, MAX_SIZE);
+	memset(recvbuf, 0, MAX_SIZE);
+	sendbuf[0] = 172;
+	bool sendSuccess = false;
+	do
+	{
+		std::deque<int> res = Send((char *)sendbuf, MAX_SIZE);
+		for (int i = 0; i < res.size(); i++)
+		{
+			//printf("[BroadcastIP]send byte: %d\r\n", res[i]);
+			if (res[i] > 0)
+			{
+				sendSuccess = true;
+			}
+		}
+		Sleep(1000);
+	} while (!*exit);
+	free(sendbuf);
+	sendbuf = NULL;
+	free(recvbuf);
+	recvbuf = NULL;
+	*exit = false;
 }
+
+void InternetControlServer::BroadcastIP()
+{
+	m_broadcastIPExit = new bool(false);
+	std::thread broadcastIP = std::thread(&InternetControlServer::BroadcastIPProc, this, m_broadcastIPExit);
+	broadcastIP.detach();
+}
+
+void InternetControlServer::ListenProc()
+{
+	//do
+	//{
+	SOCKET listenSocket = socket(m_tcpAddrIn->ai_family, m_tcpAddrIn->ai_socktype, m_tcpAddrIn->ai_protocol);
+	int re = 0;
+	re = ::bind(listenSocket, m_tcpAddrIn->ai_addr, (int)m_tcpAddrIn->ai_addrlen);
+	if (re == SOCKET_ERROR)
+	{
+		printf("[TCP]bind failed with error: %d\r\n", WSAGetLastError());
+		return;
+	}
+	printf("[TCP]---wait for client---\r\n");
+	re = listen(listenSocket, SOMAXCONN);
+	if (re == SOCKET_ERROR)
+	{
+		printf("[TCP]listen failed with error: %d\r\n", WSAGetLastError());
+		return;
+	}
+	sockaddr clientAddr;
+	int clientAddrLen = sizeof(sockaddr);
+	SOCKET sock = accept(listenSocket, &clientAddr, &clientAddrLen);
+	if (sock == INVALID_SOCKET)
+	{
+		printf("[TCP]accept failed with error: %d\r\n", WSAGetLastError());
+	}
+	else
+	{
+		printf("[TCP]%s connected.\r\n", inet_ntoa(((sockaddr_in*)&clientAddr)->sin_addr));
+		if (m_connectType == CT_TCP_NONBLOCK)
+		{
+			u_long mode = 1;
+			re = ioctlsocket(sock, FIONBIO, &mode);
+			if (re != 0)
+			{
+				printf("[TCP]set nonblock failed with error: %d.\r\n", WSAGetLastError());
+				return;
+			}
+		}
+		m_clientSocket = sock;
+		m_clientAddr = ((sockaddr_in*)&clientAddr)->sin_addr;
+		{
+			int re = ::setsockopt(m_clientSocket, SOL_SOCKET, SO_SNDBUF, (char *)&m_sendbufSize, sizeof(m_sendbufSize));
+			if (re != 0)
+			{
+				printf("[TCP]Set sendbuf size failed, error code: %d\r\n", WSAGetLastError());
+			}
+		}
+		m_tcpConnected = true;
+
+	}
+	closesocket(listenSocket);
+	listenSocket = INVALID_SOCKET;
+	//} while (true);
+}
+
+//void InternetControlServer::Listen()
+//{
+//	std::thread listenThread = thread(&InternetControlServer::ListenProc, this);
+//	listenThread.detach();
+//}
 
 deque<int> InternetControlServer::Send(char *sendbuf, int size)
 {
+	deque<int> successRe;
 	while (!m_initOK || (!m_tcpConnected && m_connectType == CT_TCP_NONBLOCK))
 	{
-		Sleep(1);
+		return successRe;
 	}
-	deque<int> successRe;
 	deque<PACKET> packets = SplitPacket(sendbuf, size, m_frameIndex);
-	for (int j = 0; j < m_dSockets.size(); j++)
+	successRe.push_back(0);
+	for (int i = 0; i < packets.size(); i++)
 	{
-		int breakSockIndex = j;
-		successRe.push_back(0);
-		for (int i = 0; i < packets.size(); i++)
+		int re = 0;
+		switch (m_connectType)
 		{
-			int re = 0;
-			switch (m_connectType)
-			{
-			case CT_UNKNOWN:
-				break;
-			case CT_TCP_NONBLOCK:
-				re = send(m_dSockets[j].first, (char*)&packets[i], sizeof(PACKET), 0);
+		case CT_UNKNOWN:
+			break;
+		case CT_TCP_NONBLOCK:
+			re = send(m_clientSocket, (char*)&packets[i], sizeof(PACKET), 0);
 				
-				if (re > 0)
+			if (re > 0)
+			{
+				successRe[0] += packets[i].dataSize;
+				//printf("[TCP]Send to socket index %d %d bytes.\r\n", j, successRe[j]);
+			}
+			else
+			{
+				int errorCode = WSAGetLastError();
+				printf("[TCP]Error send to %s, packet index: %d, error code: %d.\r\n", inet_ntoa(m_clientAddr), i, errorCode);
+				if (errorCode == WSAEWOULDBLOCK)
 				{
-					successRe[j] += packets[i].dataSize;
-					//printf("[TCP]Send to socket index %d %d bytes.\r\n", j, successRe[j]);
+					printf("[TCP]Continue send frame.\r\n");
 				}
 				else
 				{
-					int errorCode = WSAGetLastError();
-					printf("[TCP]Error send to %s, packet index: %d, error code: %d.\r\n", inet_ntoa(((sockaddr_in*)&m_dSockets[breakSockIndex].second)->sin_addr), i, errorCode);
-					if (errorCode == WSAEWOULDBLOCK)
-					{
-						printf("[TCP]Continue frame.\r\n", inet_ntoa(((sockaddr_in*)&m_dSockets[breakSockIndex].second)->sin_addr), i, errorCode);
-					}
-					else
-					{
-						printf("[TCP]Connection terminated\r\n");
-						closesocket(m_dSockets[j].first);
-						m_dSockets.erase(m_dSockets.begin() + j);
-						j--;
-					}
-					goto NextSocket;
+					printf("[TCP]Connection terminated\r\n");
+					closesocket(m_clientSocket);
+					m_clientAddr = in_addr();
+					m_tcpConnected = false;
 				}
-				break;
-			case CT_UDP_BROADCAST:
+				goto NextFrame;
+			}
+			break;
+		case CT_UDP_BROADCAST:
+			for (int j = 0; j < m_dSockets.size(); j++)
+			{
+				if (successRe.size() == j)
+					successRe.push_back(0);
 				re = sendto(m_dSockets[j].first, (char*)&packets[i], sizeof(PACKET), 0, (sockaddr *)&m_dRecv_addr[j], m_dRecv_addr_len[j]);
 				if (re > 0)
 				{
@@ -399,147 +457,153 @@ deque<int> InternetControlServer::Send(char *sendbuf, int size)
 					closesocket(m_dSockets[j].first);
 					m_dSockets.erase(m_dSockets.begin() + j);
 					j--;
-					goto NextSocket;
 				}
-				break;
-			default:
-				break;
 			}
-		}
-	NextSocket:
-		;
-		switch (m_connectType)
-		{
-		case CT_UNKNOWN:
-			break;
-		case CT_TCP_NONBLOCK:
-			printf("[TCP]Send to %s %d bytes.\r\n", inet_ntoa(((sockaddr_in*)&m_dSockets[breakSockIndex].second)->sin_addr), successRe[breakSockIndex]);
-			break;
-		case CT_UDP_BROADCAST:
-			printf("[UDP_B]Send to %s %d bytes.\r\n", inet_ntoa(m_dRecv_addr[breakSockIndex].sin_addr), successRe[breakSockIndex]);
 			break;
 		default:
 			break;
 		}
 	}
+NextFrame:
+	;
+	switch (m_connectType)
+	{
+	case CT_UNKNOWN:
+		break;
+	case CT_TCP_NONBLOCK:
+		printf("[TCP]Send to %s %d bytes.\r\n", inet_ntoa(m_clientAddr), successRe[0]);
+		break;
+	case CT_UDP_BROADCAST:
+		for (int j = 0; j < m_dSockets.size(); j++)
+		{
+			printf("[UDP_B]Send to %s %d bytes.\r\n", inet_ntoa(m_dRecv_addr[j].sin_addr), successRe[j]);
+		}
+		break;
+	default:
+		break;
+	}
 	m_frameIndex++;
 	return successRe;
 }
 
-bool InternetControlServer::Recv(char *recvbuf, int size, int &reSize)
+int InternetControlServer::Recv(char *recvbuf, int size, int &reSize)
 {
+	int recvSuccess = 0;
 	while (!m_initOK || (!m_tcpConnected && m_connectType == CT_TCP_NONBLOCK))
 	{
-		Sleep(1);
+		recvSuccess = 4;
+		return recvSuccess;
 	}
-	bool recvSuccess = false;
-//	int successRe = 0;
-//	deque<PACKET> packets;
-//	PACKET firstPacket;
-//	bool isFirstPackets = false;
-//	int packetsCount = 0;
-//	clock_t tick = clock();
-//	int outTime = 1000 / SYNC_FPS;
-//	do
-//	{
-//		int re = 0;
-//		recvSuccess = false;
-//		PACKET packet;
-//		switch (m_connectType)
-//		{
-//		case CT_UNKNOWN:
-//			break;
-//		case CT_TCP_NONBLOCK:
-//			re = recv(m_socket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0);
-//			if (re > 0)
-//			{
-//				recvSuccess = true;
-//			}
-//			else
-//			{
-//				printf("[TCP]Error recv from %s. packet index: %d, error code: %d.\r\n", inet_ntoa(m_serverIp), packetsCount, WSAGetLastError());
-//				closesocket(m_socket);
-//				m_socket = INVALID_SOCKET;
-//				goto NextFrame;
-//			}
-//			break;
-//		case CT_UDP_BROADCAST:
-//			if (clock() - tick > outTime)
-//			{
-//				printf("[UDP_B]Error recv from %s. packet index: %d, error code: time out.\r\n", inet_ntoa(m_serverIp), packetsCount);
-//				goto NextFrame;
-//			}
-//			re = recvfrom(m_socket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0, (sockaddr *)&m_sender_addr, &m_sender_addr_len);
-//			m_serverIp = m_sender_addr.sin_addr;
-//			if (re > 0)
-//			{
-//				recvSuccess = true;
-//			}
-//			else
-//			{
-//				printf("[UDP_B]Error recv. packet index: %d, error code: %d.\r\n", packetsCount, WSAGetLastError());
-//				closesocket(m_socket);
-//				m_socket = INVALID_SOCKET;
-//				m_serverIp = in_addr();
-//				goto NextFrame;
-//			}
-//			break;
-//		default:
-//			break;
-//		}
-//
-//		//if (re != sizeof(PACKET))
-//		//{
-//		//	printf("re != sizeof(PACKET)\r\n");
-//		//}
-//
-//		m_needProcBufSize += re;
-//		int procPacketCount = m_needProcBufSize / sizeof(PACKET);
-//		for (int i = 0; i < procPacketCount; i++)
-//		{
-//			PACKET packet;
-//			memcpy(&packet, m_needProcBuf, sizeof(PACKET));
-//			if (firstPacket.frameIndex == -1)
-//			{
-//				firstPacket = packet;
-//			}
-//			if (firstPacket.frameIndex != -1 && packetsCount < firstPacket.count)
-//			{
-//				if (packet.frameIndex == firstPacket.frameIndex)
-//				{
-//					packets.push_back(packet);
-//					packetsCount++;
-//					m_needProcBufSize -= sizeof(PACKET);
-//					memcpy(m_needProcBuf, m_needProcBuf + sizeof(PACKET), m_needProcBufSize);
-//				}
-//				else
-//				{
-//					//m_dOtherPackets.push_back(packet);
-//					printf("[ERROR]packet recv data error\r\n");
-//				}
-//			}
-//			else
-//			{
-//				goto NextFrame;
-//			}
-//		}
-//	} while (packetsCount < firstPacket.count || firstPacket.frameIndex == -1);
-//NextFrame:
-//	successRe = MergePacket(packets, recvbuf, size);
-//	switch (m_connectType)
-//	{
-//	case CT_UNKNOWN:
-//		break;
-//	case CT_TCP_NONBLOCK:
-//		printf("[TCP]Recv from %s %d bytes.\r\n", inet_ntoa(m_serverIp), successRe);
-//		break;
-//	case CT_UDP_BROADCAST:
-//		printf("[UDP_B]Recv from %s %d bytes.\r\n", inet_ntoa(m_serverIp), successRe);
-//		break;
-//	default:
-//		break;
-//	}
-//	reSize = successRe;
+	int successRe = 0;
+	deque<PACKET> packets;
+	PACKET firstPacket;
+	bool isFirstPackets = false;
+	int packetsCount = 0;
+	clock_t tick = clock();
+	int outTime = 1000 / SYNC_FPS;
+	do
+	{
+		int re = 0;
+		recvSuccess = 0;
+		PACKET packet;
+		switch (m_connectType)
+		{
+		case CT_UNKNOWN:
+			break;
+		case CT_TCP_NONBLOCK:
+			re = recv(m_clientSocket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0);
+			if (re > 0)
+			{
+				recvSuccess = 0;
+			}
+			else
+			{
+				int errorCode = WSAGetLastError();
+				if (errorCode == WSAEWOULDBLOCK)
+				{
+					printf("[TCP]Continue recv frame.\r\n");
+					recvSuccess = 5;
+				}
+				else
+				{
+					printf("[TCP]Error recv from %s. packet index: %d, error code: %d.\r\n", inet_ntoa(m_clientAddr), packetsCount, errorCode);
+					printf("[TCP]Connection terminated\r\n");
+					closesocket(m_clientSocket);
+					m_clientAddr = in_addr();
+					m_tcpConnected = false;
+					recvSuccess = 1;
+				}
+				goto NextFrame;
+			}
+			break;
+		case CT_UDP_BROADCAST:
+			break;
+		default:
+			break;
+		}
+
+		//if (re != sizeof(PACKET))
+		//{
+		//	printf("re != sizeof(PACKET)\r\n");
+		//}
+
+		m_needProcBufSize += re;
+		int procPacketCount = m_needProcBufSize / sizeof(PACKET);
+		for (int i = 0; i < procPacketCount; i++)
+		{
+			PACKET packet;
+			memcpy(&packet, m_needProcBuf, sizeof(PACKET));
+			if (firstPacket.frameIndex == -1)
+			{
+                if(packet.index == 0)
+                {
+					firstPacket = packet;
+                }
+                else
+                {
+					m_needProcBufSize -= sizeof(PACKET);
+					memcpy(m_needProcBuf, m_needProcBuf + sizeof(PACKET), m_needProcBufSize);
+                    continue;
+                }
+			}
+			if (packetsCount < firstPacket.count)
+			{
+				if (packet.frameIndex == firstPacket.frameIndex)
+				{
+					packets.push_back(packet);
+					packetsCount++;
+					m_needProcBufSize -= sizeof(PACKET);
+					memcpy(m_needProcBuf, m_needProcBuf + sizeof(PACKET), m_needProcBufSize);
+				}
+				else
+				{
+					printf("[ERROR]packet recv data error.\r\n");
+					recvSuccess = 2;
+					goto NextFrame;
+				}
+			}
+			else
+			{
+				printf("[ERROR]unknown error.\r\n");
+				recvSuccess = 3;
+			}
+		}
+	} while (packetsCount < firstPacket.count || firstPacket.frameIndex == -1);
+NextFrame:
+	successRe = MergePacket(packets, recvbuf, size);
+	switch (m_connectType)
+	{
+	case CT_UNKNOWN:
+		break;
+	case CT_TCP_NONBLOCK:
+		printf("[TCP]Recv from %s %d bytes.\r\n", inet_ntoa(m_clientAddr), successRe);
+		break;
+	case CT_UDP_BROADCAST:
+		break;
+	default:
+		break;
+	}
+	reSize = successRe;
 	return recvSuccess;
 }
 
@@ -547,7 +611,7 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 {
 	m_connectType = type;
 	if(ip != NULL)
-		m_serverIp.S_un.S_addr = inet_addr(ip);
+		m_serverAddr.S_un.S_addr = inet_addr(ip);
 	WSAStartup(MAKEWORD(2, 2), &m_wsaData);
 	m_needProcBuf = (char*)malloc(sizeof(PACKET) * 10000);
 	memset(m_needProcBuf, 0, sizeof(PACKET) * 10000);
@@ -558,9 +622,9 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 	case CT_TCP:
 		printf("[TCP]connect to %s...\r\n", ip);
 
-		while (m_socket == INVALID_SOCKET)
+		while (m_serverSocket == INVALID_SOCKET)
 		{
-			m_socket = INVALID_SOCKET;
+			m_serverSocket = INVALID_SOCKET;
 			addrinfo hints;
 			ZeroMemory(&hints, sizeof(hints));
 			hints.ai_family = AF_UNSPEC;
@@ -571,12 +635,12 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 
 			for (addrinfo *ptr = m_tcpAddrIn; ptr != NULL; ptr = ptr->ai_next)
 			{
-				m_socket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-				int re = connect(m_socket, ptr->ai_addr, (int)ptr->ai_addrlen);
+				m_serverSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+				int re = connect(m_serverSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
 				if (re == SOCKET_ERROR)
 				{
-					closesocket(m_socket);
-					m_socket = INVALID_SOCKET;
+					closesocket(m_serverSocket);
+					m_serverSocket = INVALID_SOCKET;
 					int errorcode = WSAGetLastError();
 					if (errorcode != 0)
 						printf("[TCP]connect to %s failed, error code: %d\r\n", ip, errorcode);
@@ -585,17 +649,25 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 				break;
 			}
 		}
+
+{
+        int re = ::setsockopt(m_serverSocket, SOL_SOCKET, SO_RCVBUF, (char*)&m_recvbufSize, sizeof(int));
+        if(re != 0)
+        {
+        	printf("[TCP]Set recvbuf size failed, error code: %d\r\n", WSAGetLastError());
+        }
+}
 		m_tcpConnected = true;
 		printf("[TCP]connect to %s success.\r\n", ip);
 		break;
 	case CT_UDP_BROADCAST:
 
-		m_socket = socket(AF_INET, SOCK_DGRAM, 0);
+		m_serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
 
-		if (setsockopt(m_socket, SOL_SOCKET, SO_BROADCAST, &m_broadcast, sizeof(m_broadcast)) < 0)
+		if (setsockopt(m_serverSocket, SOL_SOCKET, SO_BROADCAST, &m_broadcast, sizeof(m_broadcast)) < 0)
 		{
 			printf("Error in setting Broadcast option\r\n");
-			closesocket(m_socket);
+			closesocket(m_serverSocket);
 			goto Error;
 		}
 		//...
@@ -605,10 +677,10 @@ InternetControlClient::InternetControlClient(ConnectType type, short port, const
 		m_recv_addr.sin_port = htons(port);
 		m_recv_addr.sin_addr.s_addr = INADDR_ANY;
 
-		if (::bind(m_socket, (sockaddr*)&m_recv_addr, sizeof(m_recv_addr)) < 0)
+		if (::bind(m_serverSocket, (sockaddr*)&m_recv_addr, sizeof(m_recv_addr)) < 0)
 		{
 			printf("[UDP_B]Error in BINDING. Error code: %d.", WSAGetLastError());
-			closesocket(m_socket);
+			closesocket(m_serverSocket);
 			goto Error;
 		}
 
@@ -633,40 +705,74 @@ InternetControlClient::~InternetControlClient()
 		freeaddrinfo(m_tcpAddrIn);
 		m_tcpAddrIn = NULL;
 	}
-	closesocket(m_socket);
+	closesocket(m_serverSocket);
 	WSACleanup();
 }
 
-int InternetControlClient::Send(char *sendbuf, int size)
+int InternetControlClient::Send(char *sendbuf, int size, bool withPacket)
 {
 	while (!m_initOK || (!m_tcpConnected && m_connectType == CT_TCP))
 	{
 		Sleep(1);
 	}
 	int successRe = 0;
-	deque<PACKET> packets = SplitPacket(sendbuf, size, m_frameIndex);
-
-	for (int i = 0; i < packets.size(); i++)
+	if(withPacket)
 	{
-		int re = 0;
+		deque<PACKET> packets = SplitPacket(sendbuf, size, m_frameIndex);
+		for (int i = 0; i < packets.size(); i++)
+		{
+			int re = 0;
+			switch (m_connectType)
+			{
+			case CT_UNKNOWN:
+				break;
+			case CT_TCP:
+				re = send(m_serverSocket, (char*)&packets[i], sizeof(PACKET), 0);
+
+				if (re > 0)
+				{
+					successRe += packets[i].dataSize;
+					//printf("[TCP]Send to socket index %d %d bytes.\r\n", j, successRe[j]);
+				}
+				else
+				{
+					printf("[TCP]Error send to %s, packet index: %d, error code: %d.\r\n", inet_ntoa(m_serverAddr), i, WSAGetLastError());
+					printf("[TCP]Connection terminated\r\n");
+					closesocket(m_serverSocket);
+					m_serverSocket = INVALID_SOCKET;
+					m_tcpConnected = false;
+					goto NextFrame;
+				}
+				break;
+			case CT_UDP_BROADCAST:
+				break;
+			default:
+				break;
+			}
+		}
+		m_frameIndex++;
+	}
+	else
+	{
+    	int re = 0;
 		switch (m_connectType)
 		{
 		case CT_UNKNOWN:
 			break;
 		case CT_TCP:
-			re = send(m_socket, (char*)&packets[i], sizeof(PACKET), 0);
+			re = send(m_serverSocket, sendbuf, size, 0);
 
 			if (re > 0)
 			{
-				successRe += packets[i].dataSize;
+				successRe = re;
 				//printf("[TCP]Send to socket index %d %d bytes.\r\n", j, successRe[j]);
 			}
 			else
 			{
-				printf("[TCP]Error send to %s, packet index: %d, error code: %d.\r\n", inet_ntoa(m_serverIp), i, WSAGetLastError());
+				printf("[TCP]Error send to %s, error code: %d.\r\n", inet_ntoa(m_serverAddr), WSAGetLastError());
 				printf("[TCP]Connection terminated\r\n");
-				closesocket(m_socket);
-				m_socket = INVALID_SOCKET;
+				closesocket(m_serverSocket);
+				m_serverSocket = INVALID_SOCKET;
 				m_tcpConnected = false;
 				goto NextFrame;
 			}
@@ -676,32 +782,32 @@ int InternetControlClient::Send(char *sendbuf, int size)
 		default:
 			break;
 		}
-	}
+    }
 NextFrame:
 	switch (m_connectType)
 	{
 	case CT_UNKNOWN:
 		break;
 	case CT_TCP:
-		printf("[TCP]Send to %s %d bytes.\r\n", inet_ntoa(m_serverIp), successRe);
+		printf("[TCP]Send to %s %d bytes.\r\n", inet_ntoa(m_serverAddr), successRe);
 		break;
 	case CT_UDP_BROADCAST:
 		break;
 	default:
 		break;
 	}
-	m_frameIndex++;
 
 	return successRe;
 }
 
-bool InternetControlClient::Recv(char *recvbuf, int size, int &reSize)
+int InternetControlClient::Recv(char *recvbuf, int size, int &reSize)
 {
+	int recvSuccess = 0;
 	while (!m_initOK || (!m_tcpConnected && m_connectType == CT_TCP))
 	{
-		Sleep(1);
+		recvSuccess = 4;
+		return recvSuccess;
 	}
-	bool recvSuccess = false;
 	int successRe = 0;
 	deque<PACKET> packets;
 	PACKET firstPacket;
@@ -712,44 +818,47 @@ bool InternetControlClient::Recv(char *recvbuf, int size, int &reSize)
 	do
 	{
 		int re = 0;
-		recvSuccess = false;
+		recvSuccess = 0;
 		PACKET packet;
 		switch (m_connectType)
 		{
 		case CT_UNKNOWN:
 			break;
 		case CT_TCP:
-			re = recv(m_socket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0);
+			re = recv(m_serverSocket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0);
 			if (re > 0)
 			{
-				recvSuccess = true;
+				recvSuccess = 0;
 			}
 			else
 			{
-				printf("[TCP]Error recv from %s. packet index: %d, error code: %d.\r\n", inet_ntoa(m_serverIp), packetsCount, WSAGetLastError());
-				closesocket(m_socket);
-				m_socket = INVALID_SOCKET;
+				printf("[TCP]Error recv from %s. packet index: %d, error code: %d.\r\n", inet_ntoa(m_serverAddr), packetsCount, WSAGetLastError());
+				closesocket(m_serverSocket);
+				m_serverSocket = INVALID_SOCKET;
+				m_tcpConnected = false;
+				recvSuccess = 1;
 				goto NextFrame;
 			}
 			break;
 		case CT_UDP_BROADCAST:
 			if (clock() - tick > outTime)
 			{
-				printf("[UDP_B]Error recv from %s. packet index: %d, error code: time out.\r\n", inet_ntoa(m_serverIp), packetsCount);
+				printf("[UDP_B]Error recv from %s. packet index: %d, error code: time out.\r\n", inet_ntoa(m_serverAddr), packetsCount);
 				goto NextFrame;
 			}
-			re = recvfrom(m_socket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0, (sockaddr *)&m_sender_addr, &m_sender_addr_len);
-			m_serverIp = m_sender_addr.sin_addr;
+			re = recvfrom(m_serverSocket, m_needProcBuf + m_needProcBufSize, sizeof(PACKET), 0, (sockaddr *)&m_sender_addr, &m_sender_addr_len);
+			m_serverAddr = m_sender_addr.sin_addr;
 			if (re > 0)
 			{
-				recvSuccess = true;
+				recvSuccess = 0;
 			}
 			else
 			{
 				printf("[UDP_B]Error recv. packet index: %d, error code: %d.\r\n", packetsCount, WSAGetLastError());
-				closesocket(m_socket);
-				m_socket = INVALID_SOCKET;
-				m_serverIp = in_addr();
+				closesocket(m_serverSocket);
+				m_serverSocket = INVALID_SOCKET;
+				m_serverAddr = in_addr();
+				recvSuccess = 1;
 				goto NextFrame;
 			}
 			break;
@@ -770,7 +879,16 @@ bool InternetControlClient::Recv(char *recvbuf, int size, int &reSize)
 			memcpy(&packet, m_needProcBuf, sizeof(PACKET));
 			if (firstPacket.frameIndex == -1)
 			{
-				firstPacket = packet;
+                if(packet.index == 0)
+                {
+					firstPacket = packet;
+                }
+                else
+                {
+					m_needProcBufSize -= sizeof(PACKET);
+					memcpy(m_needProcBuf, m_needProcBuf + sizeof(PACKET), m_needProcBufSize);
+                    continue;
+                }
 			}
 			if (packetsCount < firstPacket.count)
 			{
@@ -784,18 +902,14 @@ bool InternetControlClient::Recv(char *recvbuf, int size, int &reSize)
 				else
 				{
 					printf("[ERROR]packet recv data error.\r\n");
-					recvSuccess = false;
+					recvSuccess = 2;
 					goto NextFrame;
 				}
-			}
-			else if(packetsCount == firstPacket.count && packet.frameIndex == firstPacket.frameIndex)
-			{
-				goto NextFrame;
 			}
 			else
 			{
 				printf("[ERROR]unknown error.\r\n");
-				recvSuccess = false;
+				recvSuccess = 3;
 			}
 		}
 	}
@@ -807,10 +921,10 @@ NextFrame:
 	case CT_UNKNOWN:
 		break;
 	case CT_TCP:
-		printf("[TCP]Recv from %s %d bytes.\r\n", inet_ntoa(m_serverIp), successRe);
+		printf("[TCP]Recv from %s %d bytes.\r\n", inet_ntoa(m_serverAddr), successRe);
 		break;
 	case CT_UDP_BROADCAST:
-		printf("[UDP_B]Recv from %s %d bytes.\r\n", inet_ntoa(m_serverIp), successRe);
+		printf("[UDP_B]Recv from %s %d bytes.\r\n", inet_ntoa(m_serverAddr), successRe);
 		break;
 	default:
 		break;
@@ -834,7 +948,7 @@ in_addr FindServerIP()
 		//printf("recv byte: %d\r\n", reSize);
 		if ((unsigned char)recvbuf[0] == 172)
 		{
-			return icc.m_serverIp;
+			return icc.m_serverAddr;
 		}
 	} while (true);
 
