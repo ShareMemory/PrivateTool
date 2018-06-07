@@ -3,6 +3,7 @@
 
 #define MAX_PATH 260
 #define MAX_SIZE 256
+#define NULL 0
 
 #ifdef UNICODE
 #define tchar wchar_t
