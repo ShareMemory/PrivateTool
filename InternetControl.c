@@ -23,8 +23,8 @@ int g_bufSize = DEFAULT_BUFLEN;
 
 int CreateTCPServer()
 {
-	WSADATA wsaData;
-	int iResult;
+	//WSADATA wsaData;
+	int iResult = 0;
 
 	g_listenSocket = INVALID_SOCKET;
 	g_connectSocket = INVALID_SOCKET;
@@ -33,7 +33,7 @@ int CreateTCPServer()
 	struct addrinfo hints;
 
 	// Initialize Winsock
-	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	//iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	printf("+++++++++++++++startup\r\n");
 	if (iResult != 0) {
 		printf("WSAStartup failed with error: %d\n", iResult);
@@ -50,7 +50,7 @@ int CreateTCPServer()
 	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
 		printf("getaddrinfo failed with error: %d\n", iResult);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -60,7 +60,7 @@ int CreateTCPServer()
 	if (g_listenSocket == INVALID_SOCKET) {
 		printf("socket failed with error: %ld\n", WSAGetLastError());
 		freeaddrinfo(result);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -71,7 +71,7 @@ int CreateTCPServer()
 		printf("bind failed with error: %d\n", WSAGetLastError());
 		freeaddrinfo(result);
 		CloseSocket(&g_listenSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -88,7 +88,7 @@ int ListenClient()
 	if (iResult == SOCKET_ERROR) {
 		printf("listen failed with error: %d\n", WSAGetLastError());
 		CloseSocket(&g_listenSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -98,7 +98,7 @@ int ListenClient()
 	if (g_connectSocket == INVALID_SOCKET) {
 		printf("accept failed with error: %d\n", WSAGetLastError());
 		CloseSocket(&g_listenSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -122,14 +122,14 @@ int Recv(char *recvbuf)
 	{
 		printf("Connection closing...\n");
 		CloseSocket(&g_connectSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return iResult;
 	}
 	else {
 		printf("recv failed with error: %d\n", WSAGetLastError());
 		CloseSocket(&g_connectSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -147,7 +147,7 @@ int Send(char *sendbuf)
 	if (iResult == SOCKET_ERROR) {
 		printf("send failed with error: %d\n", WSAGetLastError());
 		CloseSocket(&g_connectSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -161,7 +161,7 @@ int ShutDownConnect()
 	if (iResult == SOCKET_ERROR) {
 		printf("shutdown failed with error: %d\n", WSAGetLastError());
 		CloseSocket(&g_connectSocket);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -175,7 +175,7 @@ int CleanUp()
 	printf("cleanup...\n");
 	CloseSocket(&g_connectSocket);
 	CloseSocket(&g_listenSocket);
-	WSACleanup();
+	//WSACleanup();
 	printf("+++++++++++++++Cleanup\r\n");
 	return 0;
 }
@@ -206,15 +206,15 @@ int ReListenClient()
 
 int ConnectTCPServer()
 {
-	WSADATA wsaData;
+	//WSADATA wsaData;
 	struct addrinfo *result = NULL,
 		*ptr = NULL,
 		hints;
-	int iResult;
+	int iResult = 0;
 
 	// Initialize Winsock
-	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	printf("+++++++++++++++startup\r\n");
+	//iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	//printf("+++++++++++++++startup\r\n");
 	if (iResult != 0) {
 		printf("WSAStartup failed with error: %d\n", iResult);
 		return -1;
@@ -229,7 +229,7 @@ int ConnectTCPServer()
 	iResult = getaddrinfo(DEFAULT_IP_ADDRESS, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
 		printf("getaddrinfo failed with error: %d\n", iResult);
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}
@@ -242,7 +242,7 @@ int ConnectTCPServer()
 			ptr->ai_protocol);
 		if (g_connectSocket == INVALID_SOCKET) {
 			printf("socket failed with error: %ld\n", WSAGetLastError());
-			WSACleanup();
+			//WSACleanup();
 			printf("+++++++++++++++Cleanup\r\n");
 			return -1;
 		}
@@ -260,7 +260,7 @@ int ConnectTCPServer()
 
 	if (g_connectSocket == INVALID_SOCKET) {
 		printf("Unable to connect to server!\n");
-		WSACleanup();
+		//WSACleanup();
 		printf("+++++++++++++++Cleanup\r\n");
 		return -1;
 	}

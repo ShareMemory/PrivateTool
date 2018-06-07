@@ -404,7 +404,7 @@ bool _stdcall SvcControl::DoStopProcess(const tchar * processname)
 			std::tstring tmpwstr;
 			if(hProcess == NULL)
 			{
-#ifdef LOG
+#ifdef SVC_LOG
 				std::ostringstream tmpstream;
 				tmpstream << "OpenProcess failed. Continue. ProcessID: " << pe32.th32ProcessID;
 				std::string tmplogstr = tmpstream.str();
@@ -416,7 +416,7 @@ bool _stdcall SvcControl::DoStopProcess(const tchar * processname)
 			{
 //				if(tmpwstr == TEXT("\\\\NT AUTHORITY\\SYSTEM")
 //				{
-//#ifdef LOG
+//#ifdef SVC_LOG
 //					logThread->AddLog("continue 1 process");
 //#endif
 //					continue;
@@ -426,7 +426,7 @@ bool _stdcall SvcControl::DoStopProcess(const tchar * processname)
 				 hProcess,
 				 0
 			);
-#ifdef LOG
+#ifdef SVC_LOG
 			logThread->AddLog("terminate 1 process");
 #endif
 		}
@@ -651,10 +651,21 @@ bool _stdcall SvcControl::DoStartSvc(const tchar *servicename)
 	return true;
 }
 
-bool _stdcall SvcControl::DoStartProcess(const tchar* wccmd, const tchar* wcworkingdir)
+int _stdcall SvcControl::DoStartProcess(const tchar* wccmd, const tchar* wcworkingdir)
 {
-	tchar wc[128] = TEXT("");
+    bool re = true;
+
+	tchar wc[MAX_PATH] = TEXT("");
 	std::tstrcpy(wc, wccmd);
+
+    tchar* workingdir = NULL;
+
+    if(tstrcmp(wcworkingdir, TEXT("")) != 0)
+    {
+        workingdir = (tchar*)malloc(MAX_PATH);
+        memset(workingdir, 0, MAX_PATH);
+        tstrcpy(workingdir, wcworkingdir);
+    }
 
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;
@@ -671,13 +682,15 @@ bool _stdcall SvcControl::DoStartProcess(const tchar* wccmd, const tchar* wcwork
 		FALSE,          // Set handle inheritance to FALSE
         0,              // No creation flags
 		NULL,           // Use parent's environment block
-		wcworkingdir,           // Use parent's starting directory
+		workingdir,           // Use parent's starting directory
 		&si,            // Pointer to STARTUPINFO structure
 		&pi )           // Pointer to PROCESS_INFORMATION structure
 	)
 	{
-		printf( "CreateProcess failed (%d).\n", GetLastError() );
-		return false;
+        int errorcode = GetLastError();
+		printf( "CreateProcess failed (%d).\n", errorcode );
+		re = errorcode;
+        goto Error;
 	}
 
 //	// Wait until child process exits.
@@ -686,7 +699,13 @@ bool _stdcall SvcControl::DoStartProcess(const tchar* wccmd, const tchar* wcwork
 //	// Close process and thread handles.
 //	CloseHandle( pi.hProcess );
 //	CloseHandle( pi.hThread );
-	return true;
+Error:
+    if(workingdir != NULL)
+    {
+        free(workingdir);
+        workingdir = NULL;
+    }
+	return re;
 }
 
 bool _stdcall SvcControl::DoStartProcess(const tchar* wccmd, DWORD * elapsedtime, DWORD * returnvalue)
@@ -769,7 +788,7 @@ bool _stdcall SvcControl::QuaryProcess(const tchar *processname)
 			std::tstring tmpwstr;
 			if (hProcess == NULL)
 			{
-#ifdef LOG
+#ifdef SVC_LOG
 				std::ostringstream tmpstream;
 				tmpstream << "OpenProcess failed. Continue. ProcessID: " << pe32.th32ProcessID;
 				std::string tmplogstr = tmpstream.str();
@@ -781,14 +800,14 @@ bool _stdcall SvcControl::QuaryProcess(const tchar *processname)
 			{
 //				if(tmpwstr == TEXT("\\\\NT AUTHORITY\\SYSTEM")
 //				{
-//#ifdef LOG
+//#ifdef SVC_LOG
 //					logThread->AddLog("continue 1 process");
 //#endif
 //					continue;
 //				}
 				have = true;
 			}
-#ifdef LOG
+#ifdef SVC_LOG
 			logThread->AddLog("terminate 1 process");
 #endif
 		}

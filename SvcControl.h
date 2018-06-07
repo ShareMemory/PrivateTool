@@ -40,7 +40,7 @@ public:
 	bool _stdcall DoStopProcess();
 	bool _stdcall DoStopProcess(const tchar * processname);
 	bool _stdcall DoStartSvc(const tchar *servicename);
-	bool _stdcall DoStartProcess(const tchar* wccmd, const tchar* wcworkingdir = TEXT(""));
+	int _stdcall DoStartProcess(const tchar* wccmd, const tchar* wcworkingdir = TEXT(""));
 	bool _stdcall DoStartProcess(const tchar* wccmd, DWORD * elapsedtime, DWORD * returnvalue);
 	bool _stdcall QuaryProcess(const tchar *processname);
 	bool _stdcall GetOsVersion(RTL_OSVERSIONINFOEXW* pk_OsVer);
