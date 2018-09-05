@@ -18,9 +18,16 @@
 #define to_tstring to_wstring
 #define tstrcmp wcscmp
 #define tstrncpy wcsncpy
+#define tstrncpy_s wcsncpy_s
 #define _tstrlwr _wcslwr
+#define _tstrlwr_s _wcslwr_s
 #define tfopen _wfopen
+#define tfopen_s _wfopen_s
+#define tsprintf swprintf
+#define tsprintf_s swprintf_s
+
 #define __TEXT(quote) L##quote      // r_winnt
+#define MAX_COUNT 128
 #else
 #define tchar char
 #define tstring string
@@ -34,9 +41,18 @@
 #define to_tstring to_string
 #define tstrcmp strcmp
 #define tstrncpy strncpy
+#define tstrncpy_s strncpy_s
 #define _tstrlwr _strlwr
+#define _tstrlwr_s _strlwr_s
 #define tfopen fopen
+#define tfopen_s fopen_s
+#define tsprintf sprintf
+#define tsprintf_s sprintf_s
+
 #define __TEXT(quote) quote         // r_winnt
+#define MAX_COUNT 256
 #endif
 #define TEXT(quote) __TEXT(quote)   // r_winnt
+
 #endif
+

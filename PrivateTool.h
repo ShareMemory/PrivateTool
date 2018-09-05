@@ -4,12 +4,7 @@
 #include "LogServer.h"
 
 #include <string>
-
-enum FileType {
-	FT_UNKNOWN = 0,
-	FT_FILE = 1,
-	FT_DIR = 2
-};
+#include <deque>
 
 enum FlipMode {
 	FM_UNKNOWN = 0,
@@ -27,10 +22,10 @@ public:
 
 	std::tstring GetExeFilePath();
     std::tstring GetExeFolderPath();
-	FileType CheckFileType(const tchar *path);
-	int CreateFolder(const tchar *dirPath);
 	//DMDO_DEFAULT DMDO_90 DMDO_180 DMDO_270
 	FlipMode GetMonitorFlipMode();
+	std::deque<std::string> SplitA(std::string str, char splitChar);
+	std::deque<std::tstring> Split(std::tstring str, tchar splitChar);
 
 	PrivateTool();
 	~PrivateTool();

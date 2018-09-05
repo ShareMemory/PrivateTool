@@ -3,7 +3,7 @@
 #include "AccCtrl.h"
 #include "Aclapi.h"
 
-ShareMemory::ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, unsigned int bufSize)
+ShareMemory::ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, unsigned int bufSize, ShareMemoryMode shareMemoryMode)
 {
 	m_shareMemoryName = (tchar*)malloc((tstrlen(shareMemoryName) + 1) * 2);
 	memset(m_shareMemoryName, 0, (tstrlen(shareMemoryName) + 1) * 2);
@@ -13,10 +13,71 @@ ShareMemory::ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, u
 	memcpy(m_mutexName, mutexName, (tstrlen(mutexName) + 1) * 2);
 	m_bufSize = bufSize;
 
-	m_hMapFile = OpenFileMapping(
-		FILE_MAP_READ,   // read/write access
-		FALSE,                 // do not inherit the name
-		m_shareMemoryName);               // name of mapping object
+    if(shareMemoryMode == ShareMemoryMode::SMM_Unknown)
+    {
+        m_mode = ShareMemoryMode::Any;
+    }
+    else
+    {
+        m_mode = shareMemoryMode;
+    }
+
+	switch (shareMemoryMode)
+	{
+	default:
+	case ShareMemoryMode::Any:
+		m_hMapFile = OpenFileMapping(
+			FILE_MAP_READ,   // read/write access
+			FALSE,                 // do not inherit the name
+			m_shareMemoryName);               // name of mapping object
+		break;
+	case ShareMemoryMode::Creator:
+		while (true)
+		{
+			m_hMapFile = OpenFileMapping(
+				FILE_MAP_READ,   // read/write access
+				FALSE,                 // do not inherit the name
+				m_shareMemoryName);               // name of mapping object
+			if (m_hMapFile == NULL)
+			{
+				break;
+			}
+			else
+			{
+				CloseHandle(m_hMapFile);
+			}
+			Sleep(100);
+		}
+		break;
+	case ShareMemoryMode::User:
+		while (true)
+		{
+			m_hMapFile = OpenFileMapping(
+				FILE_MAP_READ,   // read/write access
+				FALSE,                 // do not inherit the name
+				m_shareMemoryName);               // name of mapping object
+			if (m_hMapFile != NULL)
+			{
+				break;
+			}
+			Sleep(100);
+		}
+		break;
+	case ShareMemoryMode::UserEx:
+		while (true)
+		{
+			m_hMapFile = OpenFileMapping(
+				FILE_MAP_READ | FILE_MAP_WRITE,   // read/write access
+				FALSE,                 // do not inherit the name
+				m_shareMemoryName);               // name of mapping object
+			if (m_hMapFile != NULL)
+			{
+				break;
+			}
+			Sleep(100);
+		}
+		break;
+	}
 	if (m_hMapFile != NULL)
 	{
 		m_hMutex = OpenMutex(SYNCHRONIZE, FALSE, m_mutexName);
@@ -25,12 +86,26 @@ ShareMemory::ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, u
 			DWORD dwError = GetLastError();
 			OutputDebugString((TEXT("OpenMutex Error: ") + std::to_tstring(dwError)).c_str());
 		}
-		m_mode = ShareMemoryMode::User;
-		m_pBuf = (char*)MapViewOfFile(m_hMapFile,   // handle to map object
-			FILE_MAP_READ, // read/write permission
-			0,
-			0,
-			m_bufSize);
+        if(shareMemoryMode == ShareMemoryMode::Any)
+        {
+		    m_mode = ShareMemoryMode::User;
+        }
+        if(m_mode == ShareMemoryMode::UserEx)
+        {
+            m_pBuf = (char*)MapViewOfFile(m_hMapFile,   // handle to map object
+                FILE_MAP_READ | FILE_MAP_WRITE, // read/write permission
+                0,
+                0,
+                m_bufSize);
+        }
+        else
+        {
+            m_pBuf = (char*)MapViewOfFile(m_hMapFile,   // handle to map object
+                FILE_MAP_READ, // read/write permission
+                0,
+                0,
+                m_bufSize);
+        }
 		if (m_pBuf == NULL)
 		{
 			DWORD dwError = GetLastError();
@@ -119,7 +194,10 @@ ShareMemory::ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, u
 			DWORD dwError = GetLastError();
 			OutputDebugString((TEXT("CreateMutex Error: ") + std::to_tstring(dwError)).c_str());
 		}
-		m_mode = ShareMemoryMode::Creator;
+        if(m_mode == ShareMemoryMode::Any)
+        {
+		    m_mode = ShareMemoryMode::Creator;
+        }
 		m_pBuf = (char*)MapViewOfFile(m_hMapFile,   // handle to map object
 			FILE_MAP_ALL_ACCESS, // read/write permission
 			0,
@@ -147,9 +225,10 @@ ShareMemory::~ShareMemory()
 	m_shareMemoryName = nullptr;
 	free(m_mutexName);
 	m_mutexName = nullptr;
-	ReleaseMutex(m_hMutex);
-	CloseHandle(m_hMapFile);
-	CloseHandle(m_hMutex);
+	bool re = ReleaseMutex(m_hMutex);
+	bool re2 = CloseHandle(m_hMapFile);
+	bool re3 = CloseHandle(m_hMutex);
+	//printf("%f, %f, %f\r\n", re, re2, re3);
 }
 
 int ShareMemory::WriteData(char *pBuf)

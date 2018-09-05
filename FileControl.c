@@ -3,7 +3,11 @@
 #include <ShlObj.h>
 #include <stdio.h>
 
+#ifndef __BCPLUSPLUS__
 #pragma comment(lib, "shell32.lib")
+#else
+#pragma comment(lib, "shell32.a")
+#endif
 
 HANDLE g_hff = NULL;
 tchar g_dirPath[MAX_PATH] = TEXT("");
@@ -27,8 +31,8 @@ int FindFirstChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fil
 {
 	CleanFileFind();
 	if (dirPath == NULL || findFilePath == NULL) return 0;
-	tstrcpy(g_dirPath, dirPath);
-	tstrcat(g_dirPath, TEXT("\\*"));
+	tstrcpy_s(g_dirPath, sizeof(g_dirPath), dirPath);
+	tstrcat_s(g_dirPath, sizeof(g_dirPath), TEXT("\\*"));
 	return FindNextChildFile(dirPath, findFilePath, fileExtendType, sz_fileExtendType);
 }
 
@@ -72,14 +76,28 @@ int FindNextChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **file
 		if (index != -1)
 		{
 			tchar extendName[MAX_PATH] = TEXT("");
-			tstrncpy(extendName, fd.cFileName + index + 1, sz - index - 1);
+			tstrncpy_s(extendName, sizeof(extendName), fd.cFileName + index + 1, sz - index - 1);
+
 			for (int i = 0; i < sz_fileExtendType; i++)
 			{
-				if (tstrcmp(_tstrlwr(extendName), fileExtendType[i]) == 0)
+#ifndef __BCPLUSPLUS__
+                _tstrlwr_s(extendName, MAX_PATH);
+#else
+                if(sizeof(tchar) > 1)
+                {
+                    _wcslwr(extendName);
+                }
+                else
+                {
+                    _strlwr(extendName);
+                }
+#endif
+
+				if (tstrcmp(extendName, fileExtendType[i]) == 0)
 				{
-					tstrcpy(findFilePath, dirPath);
-					tstrcat(findFilePath, TEXT("\\"));
-					tstrcat(findFilePath, fd.cFileName);
+					tstrcpy_s(findFilePath, MAX_PATH * sizeof(tchar), dirPath);
+					tstrcat_s(findFilePath, MAX_PATH * sizeof(tchar), TEXT("\\"));
+					tstrcat_s(findFilePath, MAX_PATH * sizeof(tchar), fd.cFileName);
 					return 1;
 				}
 			}
@@ -108,7 +126,7 @@ void CleanFileFind()
 int CreateFolder(const tchar *dirPath)
 {
 	tchar dirPathCopy[MAX_PATH] = TEXT("");
-	tstrcpy_s(dirPathCopy, MAX_PATH, dirPath);
+	tstrcpy_s(dirPathCopy, sizeof(dirPathCopy), dirPath);
 	for (int i = MAX_PATH - 1; i >= 0; i--)
 	{
 		if (dirPathCopy[i] == TEXT('/'))
@@ -129,7 +147,7 @@ int CreateFolder(const tchar *dirPath)
 			}
 			exeFolderPathName[i] = 0;
 		}
-		tstrcat_s(exeFolderPathName, MAX_PATH, dirPathCopy);
+		tstrcat_s(exeFolderPathName, sizeof(exeFolderPathName), dirPathCopy);
 		re = SHCreateDirectoryEx(NULL, exeFolderPathName, NULL);
 	}
 	return re;
@@ -137,13 +155,14 @@ int CreateFolder(const tchar *dirPath)
 
 int CreateEmptyFile(const tchar *fileName)
 {
-	FILE *f = tfopen(fileName, TEXT("w"));
+	FILE *f = NULL;
+	tfopen_s(&f, fileName, TEXT("w"));
 	fclose(f);
 }
 
-int CvtToWinTypePath(tchar *path, int nSize)
+int CvtToWinTypePath(tchar *path, int nSizeCount)
 {
-	for (int i = 0; i < nSize; i++)
+	for (int i = 0; i < nSizeCount; i++)
 	{
 		if (path[i] == TEXT('/'))
 		{
@@ -151,4 +170,34 @@ int CvtToWinTypePath(tchar *path, int nSize)
 		}
 	}
 	return 0;
+}
+
+int DeleteFileEx(tchar *path)
+{
+	return DeleteFile(path);
+}
+
+int GetFileName(tchar *filePath, int sz_filePathSizeCount, tchar *fileName, int sz_fileNameSizeCount)
+{
+    CvtToWinTypePath(filePath, sz_filePathSizeCount);
+    int startIndex = 0;
+    int finded = 0;
+    for(int i = sz_fileNameSizeCount - 1; i >= 0; i--)
+    {
+        if(filePath[i] == TEXT('\\'))
+        {
+            finded = 1;
+            startIndex = i + 1;
+            break;
+        }
+    }
+    if(finded)
+    {
+        tstrcpy_s(fileName, sz_filePathSizeCount * sizeof(tchar), filePath + startIndex);
+    }
+    else
+    {
+        tstrcpy_s(fileName, sz_filePathSizeCount * sizeof(tchar), filePath);
+    }
+    return 0;
 }
