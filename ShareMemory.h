@@ -3,13 +3,14 @@
 #include "PrivateDefine.h"
 
 #include <windows.h>
-#include "PrivateTool.h"
 
 enum ShareMemoryMode
 {
 	SMM_Unknown = 0,
-	Creator = 1,
-	User = 2
+	Any = 1,
+	Creator = 2,
+	User = 3,
+    UserEx = 4,
 };
 
 class ShareMemory
@@ -26,7 +27,7 @@ private:
 public:
 	ShareMemoryMode m_mode = ShareMemoryMode::SMM_Unknown;
 
-	ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, unsigned int bufSize);
+	ShareMemory(const tchar *shareMemoryName, const tchar *mutexName, unsigned int bufSize, ShareMemoryMode shareMemoryMode = ShareMemoryMode::SMM_Unknown);
 	~ShareMemory();
 	int WriteData(char *pBuf);
 	int WriteData(char *pBuf, long long start, long long size);

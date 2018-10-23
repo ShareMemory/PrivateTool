@@ -58,12 +58,12 @@ public:
 	bool m_initOK = false;
 	bool m_tcpConnected = false;
 
-	InternetControlServer(ConnectType type, short port);
+	InternetControlServer(ConnectType type, unsigned short port);
 	~InternetControlServer();
 
-	std::deque<int> Send(char *sendbuf, int size);
+	std::deque<int> Send(char *sendbuf, int size, bool trueSend = false);
 	int Recv(char *recvbuf, int size, int &reSize);
-	void ListenProc();
+	int ListenProc(int selectTimeOut = 16);
 	//void Listen();
 	void BroadcastIPProc(bool *exit);
 	void BroadcastIP();
@@ -76,6 +76,8 @@ private:
 	WSADATA m_wsaData;
 	SOCKET m_serverSocket = INVALID_SOCKET;
     int m_recvbufSize = 1024 * 1024 * 1024;
+	unsigned short m_port = 0;
+	char m_hostIP[MAX_SIZE] = "";
 
 	char m_broadcast = '1';
 	sockaddr_in m_sender_addr;
@@ -94,14 +96,15 @@ public:
 
 	in_addr m_serverAddr;
 
-	InternetControlClient(ConnectType type, short port, const char *ip = nullptr);
+	InternetControlClient(ConnectType type, unsigned short port, const char *ip = nullptr);
 	~InternetControlClient();
 
-	int Send(char *sendbuf, int size, bool withPacket = true);
-	int Recv(char *recvbuf, int size, int &reSize);
+	int ConnectProc(int selectTimeOut = 16);
+	int Send(char *sendbuf, int size, bool withPacket = true, bool trueSend = true);
+	int Recv(char *recvbuf, int size, int &reSize, bool trueRecv = true);
 };
 
-std::deque<PACKET> SplitPacket(char *buf, int size, int frameIndex);
+std::deque<PACKET> SplitPacket(char *buf, int size, long long frameIndex);
 int MergePacket(std::deque<PACKET> packets, char *recvbuf, int size);
 in_addr FindServerIP();
 

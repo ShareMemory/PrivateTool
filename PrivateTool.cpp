@@ -27,51 +27,8 @@ tstring PrivateTool::GetExeFolderPath()
 {
 	tstring tstr = GetExeFilePath();
 	int index = (int)tstr.rfind(TEXT("\\"));
-    tstr.substr(0, index);
+    tstr = tstr.substr(0, index);
     return tstr;
-}
-
-FileType PrivateTool::CheckFileType(const tchar *path)
-{
-	enum FileType ft = FT_UNKNOWN;
-	DWORD dw = 0;
-	if (path == NULL) goto clean;
-	dw = GetFileAttributes(path);
-	if (dw == INVALID_FILE_ATTRIBUTES) goto clean;
-	if (dw & FILE_ATTRIBUTE_DIRECTORY) ft = FT_DIR;
-	else ft = FT_FILE;
-clean:
-	return ft;
-}
-
-int PrivateTool::CreateFolder(const tchar *dirPath)
-{
-	tchar dirPathCopy[MAX_PATH] = TEXT("");
-	tstrcpy_s(dirPathCopy, MAX_PATH, dirPath);
-	for (int i = MAX_PATH - 1; i >= 0; i--)
-	{
-		if (dirPathCopy[i] == '/')
-		{
-			dirPathCopy[i] = '\\';
-		}
-	}
-	int re = SHCreateDirectoryEx(NULL, dirPathCopy, NULL);
-	if (re == ERROR_BAD_PATHNAME)
-	{
-		tchar exeFolderPathName[MAX_PATH] = TEXT("");
-		GetModuleFileName(NULL, exeFolderPathName, MAX_PATH);
-		for (int i = MAX_PATH - 1; i >= 0; i--)
-		{
-			if (exeFolderPathName[i] == '\\')
-			{
-				break;
-			}
-			exeFolderPathName[i] = 0;
-		}
-		tstrcat_s(exeFolderPathName, MAX_PATH, dirPathCopy);
-		re = SHCreateDirectoryEx(NULL, exeFolderPathName, NULL);
-	}
-	return re;
 }
 
 FlipMode PrivateTool::GetMonitorFlipMode()
@@ -88,4 +45,62 @@ FlipMode PrivateTool::GetMonitorFlipMode()
 	{
 		return FlipMode::FM_UNKNOWN;
 	}
+}
+
+deque<string> PrivateTool::SplitA(string str, char splitChar)
+{
+	deque<string> re;
+	while (str.size() != 0)
+	{
+		string split;
+		for (size_t i = 0; i < str.size(); i++)
+		{
+			if (str.at(i) == splitChar)
+			{
+				str = str.substr(i + 1, str.size() - (i + 1));
+				goto Finded;
+			}
+			else
+			{
+				split = split + str.at(i);
+			}
+		}
+		str = "";
+	Finded:
+		re.push_back(split);
+	}
+	return re;
+}
+
+deque<tstring> PrivateTool::Split(tstring str, tchar splitChar)
+{
+	deque<tstring> re;
+	while (str.size() != 0)
+	{
+		tstring split;
+		bool haveSplitChar = false;
+		for (size_t i = 0; i < str.size(); i++)
+		{
+			if (str.at(i) == splitChar)
+			{
+				haveSplitChar = true;
+				str = str.substr(i + 1, tstring::npos);
+				break;
+			}
+			else
+			{
+				split = split + str.at(i);
+			}
+		}
+		if (haveSplitChar)
+		{
+			re.push_back(split);
+		}
+		else
+		{
+			re.push_back(str);
+			break;
+		}
+	}
+	return re;
 }
