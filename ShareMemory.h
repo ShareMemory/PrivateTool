@@ -3,7 +3,6 @@
 #include "PrivateDefine.h"
 
 #include <windows.h>
-#include "PrivateTool.h"
 
 enum ShareMemoryMode
 {

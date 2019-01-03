@@ -16,7 +16,7 @@
 #include <aclapi.h>
 #include <stdio.h>
 #include <string>
-#include "PrivateTool.h"
+#include "PrivateDefine.h"
 
 #define MTSERVER_NAME TEXT("MTDigitizer")
 #define MTPLATFORM TEXT("MultiTouchPlatform.exe")
