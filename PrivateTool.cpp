@@ -27,7 +27,7 @@ tstring PrivateTool::GetExeFolderPath()
 {
 	tstring tstr = GetExeFilePath();
 	int index = (int)tstr.rfind(TEXT("\\"));
-    tstr.substr(0, index);
+    tstr = tstr.substr(0, index);
     return tstr;
 }
 
@@ -103,4 +103,76 @@ deque<tstring> PrivateTool::Split(tstring str, tchar splitChar)
 		}
 	}
 	return re;
+}
+
+tstring PrivateTool::GetNowTimeString()
+{
+	tstring re;
+
+	time_t rawtime;
+	tm timeinfo[MAX_COUNT];
+	tchar buffer[MAX_SIZE];
+
+	time(&rawtime);
+	localtime_s(timeinfo, &rawtime);
+
+	tstrftime(buffer, 80, TEXT("%Y%m%d%H%M%S"), timeinfo);
+	re = buffer;
+
+	return re;
+}
+
+tstring PrivateTool::ReplaceRegularMacro(tstring str, tstring macro, tstring replaced)
+{
+	tstring re;
+	int count = str.size();
+	bool finded = false;
+	for (int i = 0; i < count - 1; i++)
+	{
+		if (str[i] == TEXT('#') && str[i + 1] == TEXT('('))
+		{
+			for (int j = i; j < count; j++)
+			{
+				if (str[j] == TEXT(')'))
+				{
+					re = str.substr(0, i) + replaced + str.substr(j + 1, str.npos);
+					finded = true;
+				}
+			}
+		}
+	}
+	if (finded)
+		return ReplaceRegularMacro(re, macro, replaced);
+	else
+		return str;
+}
+
+int PrivateTool::FindMinNumberIndex(unsigned __int64 * array, size_t count)
+{
+	int ret = -1;
+	unsigned __int64 min = -1;
+	for (int i = 0; i < count; i++)
+	{
+		if (array[i] <= min)
+		{
+			ret = i;
+			min = array[i];
+		}
+	}
+	return ret;
+}
+
+int PrivateTool::FindMaxNumberIndex(unsigned __int64 * array, size_t count)
+{
+	int ret = -1;
+	unsigned __int64 max = 0;
+	for (int i = 0; i < count; i++)
+	{
+		if (array[i] >= max)
+		{
+			ret = i;
+			max = array[i];
+		}
+	}
+	return ret;
 }

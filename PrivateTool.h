@@ -26,6 +26,10 @@ public:
 	FlipMode GetMonitorFlipMode();
 	std::deque<std::string> SplitA(std::string str, char splitChar);
 	std::deque<std::tstring> Split(std::tstring str, tchar splitChar);
+	std::tstring GetNowTimeString();
+	std::tstring ReplaceRegularMacro(std::tstring str, std::tstring macro, std::tstring replaced);
+	int FindMinNumberIndex(unsigned __int64* array, size_t count);
+	int FindMaxNumberIndex(unsigned __int64* array, size_t count);
 
 	PrivateTool();
 	~PrivateTool();

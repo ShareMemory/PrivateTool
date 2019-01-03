@@ -5,6 +5,13 @@
 #define MAX_SIZE 256
 #define NULL 0
 
+#define FREE_EX(P) \
+    if(P) free(P); \
+    P = NULL;
+#define DELETE_EX(P) \
+    if(P) delete (P); \
+    (P) = NULL;
+
 #ifdef UNICODE
 #define tchar wchar_t
 #define tstring wstring
@@ -21,10 +28,13 @@
 #define tstrncpy_s wcsncpy_s
 #define _tstrlwr _wcslwr
 #define _tstrlwr_s _wcslwr_s
+#define totlower towlower
+#define tifstream wifstream
 #define tfopen _wfopen
 #define tfopen_s _wfopen_s
 #define tsprintf swprintf
 #define tsprintf_s swprintf_s
+#define tstrftime wcsftime
 
 #define __TEXT(quote) L##quote      // r_winnt
 #define MAX_COUNT 128
@@ -44,10 +54,13 @@
 #define tstrncpy_s strncpy_s
 #define _tstrlwr _strlwr
 #define _tstrlwr_s _strlwr_s
+#define totlower tolower
+#define tifstream ifstream
 #define tfopen fopen
 #define tfopen_s fopen_s
 #define tsprintf sprintf
 #define tsprintf_s sprintf_s
+#define tstrftime strftime
 
 #define __TEXT(quote) quote         // r_winnt
 #define MAX_COUNT 256

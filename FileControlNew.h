@@ -18,8 +18,8 @@ public:
 	~FileControl();
 
 	enum FileType CheckFileType(const tchar *path);
-	int FindFirstChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType);
-	int FindNextChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType);
+	int FindFirstChildFile(const tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType);
+	int FindNextChildFile(const tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType);
 	int CreateFolder(const tchar *dirPath);
 	int CreateEmptyFile(const tchar *fileName);
 	int CvtToWinTypePath(tchar *path, int nSizeCount);
@@ -35,4 +35,5 @@ private:
 	tchar m_dirPath[MAX_PATH] = TEXT("");
 };
 
+extern FileControl g_constFileControl;
 #endif

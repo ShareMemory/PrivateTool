@@ -10,6 +10,8 @@
 #pragma comment(lib, "shell32.a")
 #endif
 
+FileControl g_constFileControl;
+
 FileControl::FileControl()
 {
 
@@ -33,7 +35,7 @@ clean:
 	return ft;
 }
 
-int FileControl::FindFirstChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType)
+int FileControl::FindFirstChildFile(const tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType)
 {
 	CleanFileFind();
 	if (dirPath == NULL || findFilePath == NULL) return 0;
@@ -42,7 +44,7 @@ int FileControl::FindFirstChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH]
 	return FindNextChildFile(dirPath, findFilePath, fileExtendType, sz_fileExtendType);
 }
 
-int FileControl::FindNextChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType)
+int FileControl::FindNextChildFile(const tchar *dirPath, tchar findFilePath[MAX_PATH], tchar **fileExtendType, int sz_fileExtendType)
 {
 	if (dirPath == NULL || findFilePath == NULL) goto clean;
 	memset(findFilePath, 0, MAX_PATH * sizeof(tchar));
@@ -89,14 +91,15 @@ int FileControl::FindNextChildFile(tchar *dirPath, tchar findFilePath[MAX_PATH],
 #ifndef __BCPLUSPLUS__
 				_tstrlwr_s(extendName, MAX_PATH);
 #else
-				if (sizeof(tchar) > 1)
-				{
-					_wcslwr(extendName);
-				}
-				else
-				{
-					_strlwr(extendName);
-				}
+                for(int j = 0; j < MAX_PATH; j++)
+                {
+                    tchar *ch = extendName + j;
+                    if(*ch == 0)
+                    {
+                        break;
+                    }
+                    *ch = totlower((int)*ch);
+                }
 #endif
 
 				if (tstrcmp(extendName, fileExtendType[i]) == 0)
@@ -231,7 +234,7 @@ int FileControl::WriteBytesToFile(const tchar *filePath, const char *pBytes, int
 {
 	int re = 0;
 	FILE *file = NULL;
-	tfopen_s(&file, filePath, "w+b");
+	tfopen_s(&file, filePath, TEXT("w+b"));
 	if (file)
 	{
 		fseek(file, 0, SEEK_SET);
@@ -250,7 +253,7 @@ int FileControl::ReadBytesFromFile(const tchar *filePath, char *pBytes, int sz_B
 	int re = 0;
 	int readedSize2 = 0;
 	FILE *file = NULL;
-	tfopen_s(&file, filePath, "rb");
+	tfopen_s(&file, filePath, TEXT("rb"));
 	if (file)
 	{
 		fseek(file, 0, SEEK_END);
@@ -281,7 +284,7 @@ using namespace std;
 void FileControl::ReadLinesFromFile(const tchar *filePath, std::deque<std::tstring> &dLines, tchar lineEnd)
 {
 	dLines.clear();
-	ifstream stream(filePath);
+	tifstream stream(filePath);
 	while (true)
 	{
 		tstring line;
